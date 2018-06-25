@@ -1,0 +1,131 @@
+---
+title: "Theophylline Data Analysis"
+author: "Venkata Kolli"
+date: "June 12, 2018"
+output: html_document
+runtime: shiny
+resource_files:
+- dm.csv
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+Theophylline is a commonly used in treatment of asthma and other lung diseases. This drug acts as a bronchodilator and helps in prevention of wheezing and shortness of breath. The theoph data from R packaged datasets comprises of 132 rows and 5 columns representing the pharmacokinetic analysis of theophylline drug.
+
+## Data
+The data consists of subject, weight, dose, time and concentration as columns. twelve subjects were administered with this drug and their serum concentrations were measured for each subject at eleven time intervals for over a period of twenty five hours. For more information about this data refer to R documentation on this dataset.
+
+## Data Cleaning
+
+```{r Data Cleanup}
+data(Theoph)
+suppressMessages(library(tidyverse))
+dm <- read.csv("dm.csv")
+dm<-rename(dm, Subject=SUBJECT, Sex=SEX)
+dm$Sex<-recode(dm$Sex, Male='M', Female='F')
+dm$Age<-gsub("[^0-9.]", "",dm$Age)
+dm$Age<-as.numeric(dm$Age)
+dm<-mutate(dm, Age_new=if_else(Age > 1000, Age/52, if_else(Age>100, Age/12, Age) ))
+```
+
+The dm data comprised of three columns and 12 rows. Here the column titles were renamed to keep them consistent throughout this assessment. The sex column values comprised of gender with two different styles of notations. The values in this column were re coded to maintain an uniform notation. The age column values also consisted of multiple styles of representations. Here also, the values in age column were altered to maintain consistency.Prior to cleanup, One assumption was made for subject 6 that age was in months instead of years.
+```{r Merge Data}
+dm$Subject<-factor(dm$Subject)
+data<-suppressWarnings(left_join(Theoph, dm, by="Subject"))
+data$Sex<-factor(data$Sex)
+data<-rename(data, Conc=conc)
+```
+
+Prior to analysis, both datasets were joined into one after converting the subjects in dm dataset as factors. The resulting dataframe was named as data and the column title for concentration was tweaked to match the rest of the titles.
+
+## Exploratory Data Analysis
+
+```{r summary}
+suppressMessages(library(psych))
+describeBy(data, data$Sex)
+```
+
+By utilizing the psych library, a summary data based on gender stratification was generated. The summary comprised of statistical analysis of all the columns for each gender. For females, the dose and concentration of drug show negative skewness while for males, the age and concentration appear to be negatively skewed. For females, the average weight is 72.83+/-7.97 mg, concentration is 4.37+/-2.48 mg/mL and for males, the average weight is 66.33+/-9.12 mg, concentration is 5.55+/-3.12 mg/mL.
+
+```{r Concentration versus time, echo=FALSE}
+suppressMessages(library(plotly))
+library(ggplot2)
+#Plot for concentration versus time stratified by gender
+renderPlotly({plot1<- ggplot(data, aes(Time, Conc))+geom_line(aes(line = Subject, color=Sex))+labs(x="Time (hr) ", y="Concentration (mg/mL)", title= "Concentration versus Time Plot")})
+```
+
+A plot for concentration versus time with respect to subjects is shown above. Based on this plot, the males were administered with higher concentrations than the females. Also, the time to attain maximum concentration is slightly longer for males than females.
+
+```{r Concentration versus Gender, echo=FALSE}
+renderPlotly({plot2<-ggplot(data, aes(x=Sex, y=Conc)) + geom_boxplot() +
+    stat_summary(fun.y=mean, geom="point", shape=5, size=4)+ labs(x="Sex", y="Concentration (mg/mL)", title= "Concentration versus Gender Plot")})
+```
+The box plot shows the interquartile ranges for concentration of drug for both genders. The mean concentration (4.65 mg/mL) for females is slightly lower than the mean concentration (6.01) for males.
+
+```{r Gender Characterization by Age, echo=FALSE}
+renderPlotly({plot3<-ggplot(data, aes(x=Sex, y=Age_new)) + geom_boxplot() +
+    stat_summary(fun.y=mean, geom="point", shape=5, size=4) + labs(x="Sex", y="Age", title= "Age versus Gender Plot")})
+```
+In this box plot, similar to earlier plot, the interquartile range of age for both genders is shown. Here the range for female ages is larger than the range for male ages but mean (49.55) for male age is significantly higher than female mean (42.95) age.
+
+```{r Gender Characterization by weight, echo=FALSE}
+renderPlotly({plot4<-ggplot(data, aes(x=Sex, y=Wt)) + geom_boxplot() +
+    stat_summary(fun.y=mean, geom="point", shape=5, size=4)+ labs(x="Sex", y="Weight (Kg)", title= "Weight versus Gender Plot")})
+```
+
+The above plot represent the boxplots of weight for both genders. Here also similar to age versus gender plot, the female weights are high. The diamond symbol represents the mean value based upon the predicted variable.
+
+```{r Concentration versus Dose, echo=FALSE}
+renderPlotly({plot5<-ggplot(data, aes(x=Dose, y=Conc, group= Subject)) + geom_point() +
+    stat_summary(fun.y=mean, geom="point", shape=5, size=4)+ labs(x="Dose (mg) ", y="Concentration (mg/mL)", title= "Concentration versus Dose Plot")})
+```
+The plot represents the concentration versus dose plot with the diamond representing the mean concentration values. Here we observed that for higher doses the maximum concentrations were comparatively higher except for dose around 4 mg. This exception could be due to the weight and gender of the subjects.
+
+```{r Concentration versus Time, echo=FALSE}
+renderPlotly({p<-ggplot(data=data, aes(x=Time, y=Conc, colour=Sex)) +
+  geom_line() +
+  geom_point()+facet_wrap(Sex~Subject, nrow = 2)+ labs(x="Time (hr) ", y="Concentration (mg/mL)")})
+```
+The above figure shows individual plots for all the twelve subjects who are separated into two groups based on sex(red=Female, blue=Male). The concentrations for male subjects mainly (1, 10, 12 & 5) are higher than 9 mg/L whereas for females only one (9) citing of >=9 mg/L concentrations.
+
+```{r Dose versus weight, echo=FALSE}
+renderPlotly({plot9<-ggplot(AUC_data, aes(x=Wt, y=Dose, group=Subject))+geom_point()+labs(x="Weight", y="Dose", title= "Weight versus Dose plot")})
+```
+
+In this plot, we can clearly observe that weight and dose are inversely related and these variabilities are to be taken into consideration for each subject. A linear plot can be generated and further help in providing the information about the right dosages based on weight subjects. Overall, since the sample size is small, we cannot expand this approach for larger sample sizes.
+
+## Pharmacokinetic analysis
+Among the different pharmacokinetic methods for drug analysis, here the noncompartmental analysis (NCA) has been utilized. 
+```{r AUC}
+library(PKNCA)
+conc_obj<-PKNCAconc(data, Conc~Time|Subject)
+dose_obj<-PKNCAdose(data, Dose~Time|Subject)
+data_obj<-PKNCAdata(data.conc = conc_obj, data.dose = dose_obj, intervals=data.frame(start=0, end=24, aucall=TRUE, auclast=FALSE, aucinf.pred=FALSE, aucinf.obs=FALSE))
+results_obj<-pk.nca(data_obj)
+summary(results_obj)
+library(knitr)
+kable(results_obj$result)
+```
+
+Here I used the PKNCA package to calculate the different area under the curve (AUC) values. The values for AUC(last) and AUC(all) for all the subjects were shown in the above table. These AUC values varied significantly from subject to subject. These AUC values were added to the dm table for further analysis.
+```{r AUC to df}
+AUC<-as.numeric(c(92.36, 67.23, 70.59, 72.84, 84.40, 71.70, 62.14, 62.78, 58.70, 135.58, 58.70, 85.03))
+dm<-cbind(dm, AUC)
+```
+
+```{r AUC plots, echo=FALSE}
+renderPlotly({A<-ggplot(data=dm, aes(x=Subject, y=AUC, color=Sex)) +
+  geom_line() +
+  geom_point()+ labs(x="Subject", y="Area under Curve", title= "Area under Curve for each Subject")})
+```
+
+The above plot shows the AUC values for each subject (red=female and blue=male). The mean AUC values (89.57) for male is comparatively higher than the mean AUC values (64.10) for female. The significantly higher mean AUC values for male might be due to the higher AUC values for subject 10. When the AUC values for the subject 10 were omitted the mean AUC value for male is around 80.37, which is still significantly higher. 
+```{r AUC vs weight, echo=FALSE}
+AUC_data<-suppressWarnings(left_join(Theoph, dm, by="Subject"))
+renderPlotly({plot8<-ggplot(AUC_data, aes(x=AUC, y=Dose, group= Subject)) + geom_point() +
+    labs(x="Area under Curve ", y="Dose (mg)", title= "AUC values versus Dose Plot")})
+```
+Based on the above plot, the AUC values were higher when the dose were above 5mg except for one scenario when the dose was around 4 mg.  
